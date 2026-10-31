@@ -1,0 +1,52 @@
+# Serve each plugin as its own MCP service.
+#
+# Every service runs the same image with a different ``--plugin`` argument, so a
+# plugin whose settings are broken cannot take down the others. Secrets are
+# mounted at ``/run/secrets`` under the plugin-prefixed variable name the settings
+# class looks up; a lowercase name would be ignored.
+#
+#   docker compose config          # validate
+#   docker compose up -d           # start both services
+#   docker compose exec example mcp-plugin-gateway example greet Ada
+#
+# The image must be built first (see Dockerfile):
+#
+#   docker build --secret id=SECURE_PLUGIN_TOKEN,src=./secrets/SECURE_PLUGIN_TOKEN \
+#     -t mcp-plugin-gateway:local .
+
+services:
+  example:
+    image: mcp-plugin-gateway:local
+    build:
+      context: .
+      secrets:
+        - SECURE_PLUGIN_TOKEN
+    command: ["--plugin", "example"]
+    environment:
+      MCP_PLUGIN_GATEWAY_MODE: container
+    secrets:
+      - SECURE_PLUGIN_TOKEN
+    stdin_open: true
+    restart: unless-stopped
+
+  secure-plugin:
+    image: mcp-plugin-gateway:local
+    build:
+      context: .
+      secrets:
+        - SECURE_PLUGIN_TOKEN
+    command: ["--plugin", "secure-plugin"]
+    environment:
+      MCP_PLUGIN_GATEWAY_MODE: container
+    secrets:
+      - SECURE_PLUGIN_TOKEN
+    stdin_open: true
+    restart: unless-stopped
+
+secrets:
+  # The secret name must match the plugin-prefixed variable name exactly:
+  # plugin ``secure-plugin`` reads ``SECURE_PLUGIN_*``, so the file is
+  # ``SECURE_PLUGIN_TOKEN``. Docker's default target is the secret name, which
+  # lands it at ``/run/secrets/SECURE_PLUGIN_TOKEN``.
+  SECURE_PLUGIN_TOKEN:
+    file: ./secrets/SECURE_PLUGIN_TOKEN

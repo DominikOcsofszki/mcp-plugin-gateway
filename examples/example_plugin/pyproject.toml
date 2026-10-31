@@ -1,0 +1,16 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "example-plugin"
+version = "0.1.0"
+description = "Example plugin for mcp-plugin-gateway exercising all surface tags."
+requires-python = ">=3.12"
+dependencies = ["fastmcp>=4.0", "mcp-plugin-gateway"]
+
+[project.entry-points."mcp_plugin_gateway.plugins"]
+example = "example_plugin:make_plugin"
+
+[tool.hatch.build.targets.wheel]
+packages = ["example_plugin"]
