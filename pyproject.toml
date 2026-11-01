@@ -1,6 +1,6 @@
 [project]
 name = "mcp-plugin-gateway"
-version = "0.1.0"
+version = "0.0.2"
 description = "Host FastMCP plugins behind an aggregate MCP gateway and generated CLI."
 readme = "README.md"
 authors = [
@@ -15,6 +15,9 @@ dependencies = [
 
 [project.scripts]
 mcp-plugin-gateway = "mcp_plugin_gateway.cli:main"
+mpg = "mcp_plugin_gateway.cli:main"
+mpg-gateway = "mcp_plugin_gateway.cli:main"
+gateway = "mcp_plugin_gateway.cli:main"
 
 [dependency-groups]
 dev = [
