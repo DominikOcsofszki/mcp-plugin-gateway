@@ -57,11 +57,11 @@ From the root of your project, scaffold a standalone plugin distribution:
 mcp-plugin-gateway new-plugin my-plugin
 ```
 
-The command creates `plugins/my-plugin/` with its metadata, README, and starter
+The command creates `mcp-gateway/my-plugin/` with its metadata, README, and starter
 FastMCP server:
 
 ```text
-plugins/
+mcp-gateway/
 └── my-plugin/
     ├── pyproject.toml
     ├── README.md
@@ -76,8 +76,14 @@ install it into the **same Python environment that runs the
 `mcp-plugin-gateway` console script**:
 
 ```bash
-cd plugins/my-plugin
+cd mcp-gateway/my-plugin
 python -m pip install -e .
+```
+
+Choose another project-relative destination with `--directory`:
+
+```bash
+mcp-plugin-gateway new-plugin my-plugin --directory plugins/my-plugin
 ```
 
 Verify that the plugin and its starter `hello` tool are discovered, then call
@@ -94,6 +100,31 @@ client to launch this command with its stdio transport:
 ```bash
 mcp-plugin-gateway mcp
 ```
+
+### Add MCP to an existing Python project
+
+If the current project has a PEP 621 `pyproject.toml` and exactly one
+top-level Python package under `src/` (or the project root), initialize it in
+place:
+
+```bash
+mpg init
+```
+
+The command previews the changes to `pyproject.toml` and the new
+`<package>/mcp_server.py`, then asks for confirmation. Declining makes no
+changes. For a non-interactive run, review the printed plan and explicitly
+approve it with:
+
+```bash
+mpg init --yes
+```
+
+This registers the existing distribution as a plugin and adds a starter
+`hello` tool. It does not create a nested distribution or generate
+project-specific tools. An agent can adapt the starter server to expose the
+project's functionality. Unsupported or ambiguous layouts are rejected
+without changing files.
 
 ### Naming rules
 

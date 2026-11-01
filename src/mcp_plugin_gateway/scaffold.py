@@ -95,11 +95,18 @@ Configure your MCP client to launch that command using its stdio transport.
     }
 
 
-def scaffold_plugin(distribution_name: str, *, root: Path | None = None) -> Path:
-    """Create a standalone plugin project under ``root/plugins``.
+def scaffold_plugin(
+    distribution_name: str,
+    *,
+    root: Path | None = None,
+    directory: Path | None = None,
+) -> Path:
+    """Create a standalone plugin under ``root/mcp-gateway`` or a chosen directory.
 
     Names use a restricted, path-safe distribution-name grammar and must also
     map directly to a valid Python package identifier after hyphen conversion.
+    A custom directory is interpreted relative to ``root`` unless absolute, and
+    must remain inside that project root.
     A failed write is reported as an ``OSError`` and the newly created project
     directory is removed when possible.
     """
@@ -112,23 +119,32 @@ def scaffold_plugin(distribution_name: str, *, root: Path | None = None) -> Path
         )
 
     project_root = (Path.cwd() if root is None else Path(root)).resolve()
-    plugins_dir = project_root / "plugins"
-    target = plugins_dir / distribution_name
+    if directory is None:
+        target = project_root / "mcp-gateway" / distribution_name
+    else:
+        requested_target = Path(directory)
+        if not requested_target.is_absolute():
+            requested_target = project_root / requested_target
+        target = requested_target.resolve()
+
+    if not target.is_relative_to(project_root):
+        raise OSError(f"Plugin project directory resolves outside project root: {target}")
+    parent = target.parent
 
     try:
-        plugins_dir.mkdir(parents=True, exist_ok=True)
-        if not plugins_dir.resolve().is_relative_to(project_root):
+        parent.mkdir(parents=True, exist_ok=True)
+        if not parent.resolve().is_relative_to(project_root):
             raise OSError(
-                f"Plugin directory resolves outside project root: {plugins_dir}"
+                f"Plugin directory resolves outside project root: {parent}"
             )
         target.mkdir()
     except FileExistsError as exc:
         if target.exists() or target.is_symlink():
             raise FileExistsError(f"Plugin project already exists: {target}") from None
-        raise OSError(f"Cannot create plugin project under {plugins_dir}: {exc}") from exc
+        raise OSError(f"Cannot create plugin project under {parent}: {exc}") from exc
     except OSError as exc:
         raise OSError(
-            f"Could not create plugin project under {plugins_dir}: {exc}"
+            f"Could not create plugin project under {parent}: {exc}"
         ) from exc
 
     try:

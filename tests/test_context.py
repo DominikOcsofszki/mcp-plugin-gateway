@@ -44,8 +44,14 @@ def test_authoring_document_explains_the_plugin_workflow() -> None:
 
     assert '[project.entry-points."mcp_plugin_gateway.plugins"]' in document
     assert 'dependencies = ["mcp-plugin-gateway", "fastmcp>=4.1.4"]' in document
-    assert "mcp-plugin-gateway new-plugin my-plugin" in document
-    assert "plugins/my-plugin/src/my_plugin/__init__.py" in document
+    assert "mpg new-plugin my-plugin" in document
+    assert "mcp-gateway/my-plugin/src/my_plugin/__init__.py" in document
+    assert "mpg init" in document
+    assert "mpg init --yes" in document
+    assert "Declining leaves the project" in document
+    assert "unchanged." in document
+    assert "does not" in document
+    assert "nested standalone" in document
     assert "python -m pip install -e ." in document
     assert "mcp-plugin-gateway llm --plugin my-plugin" in document
     assert "mcp-plugin-gateway my-plugin hello Ada" in document
@@ -90,11 +96,14 @@ def test_authoring_facts_carry_the_same_information() -> None:
     assert '[project.entry-points."mcp_plugin_gateway.plugins"]' in facts[
         "pyproject_example"
     ]
-    assert facts["scaffold_command"] == "mcp-plugin-gateway new-plugin my-plugin"
+    assert facts["scaffold_command"] == "mpg new-plugin my-plugin"
+    assert facts["scaffold_destination"] == "mcp-gateway/my-plugin/"
+    assert facts["init_command"] == "mpg init"
+    assert facts["init_approved_command"] == "mpg init --yes"
     assert facts["package_layout"] == [
-        "plugins/my-plugin/pyproject.toml",
-        "plugins/my-plugin/README.md",
-        "plugins/my-plugin/src/my_plugin/__init__.py",
+        "mcp-gateway/my-plugin/pyproject.toml",
+        "mcp-gateway/my-plugin/README.md",
+        "mcp-gateway/my-plugin/src/my_plugin/__init__.py",
     ]
 
 

@@ -897,7 +897,10 @@ def test_authoring_prints_json_on_request(capsys: pytest.CaptureFixture[str]) ->
     assert '[project.entry-points."mcp_plugin_gateway.plugins"]' in payload[
         "pyproject_example"
     ]
-    assert payload["scaffold_command"] == "mcp-plugin-gateway new-plugin my-plugin"
+    assert payload["scaffold_command"] == "mpg new-plugin my-plugin"
+    assert payload["scaffold_destination"] == "mcp-gateway/my-plugin/"
+    assert payload["init_command"] == "mpg init"
+    assert payload["init_approved_command"] == "mpg init --yes"
     assert payload["cli_example"] == "mcp-plugin-gateway my-plugin hello Ada"
     assert payload["mcp_command"] == "mcp-plugin-gateway mcp --plugin my-plugin"
 
@@ -911,11 +914,29 @@ def test_new_plugin_creates_the_standalone_project(
 
     out = _capture_cli(PluginRegistry([]), ["new-plugin", "my-plugin"], capsys)
 
-    project = tmp_path / "plugins" / "my-plugin"
+    project = tmp_path / "mcp-gateway" / "my-plugin"
     assert "Created plugin project" in out
     assert (project / "pyproject.toml").is_file()
     assert (project / "README.md").is_file()
     assert (project / "src" / "my_plugin" / "__init__.py").is_file()
+
+
+def test_new_plugin_accepts_a_custom_destination_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    out = _capture_cli(
+        PluginRegistry([]),
+        ["new-plugin", "my-plugin", "--directory", "custom/my-plugin"],
+        capsys,
+    )
+
+    project = tmp_path / "custom" / "my-plugin"
+    assert str(project) in out
+    assert (project / "pyproject.toml").is_file()
 
 
 def test_new_plugin_reports_invalid_names(
@@ -929,7 +950,7 @@ def test_new_plugin_reports_invalid_names(
 
     assert code == 2
     assert "Invalid distribution name" in capsys.readouterr().err
-    assert not (tmp_path / "plugins").exists()
+    assert not (tmp_path / "mcp-gateway").exists()
 
 
 def test_new_plugin_refuses_to_overwrite_an_existing_project(
@@ -938,7 +959,7 @@ def test_new_plugin_refuses_to_overwrite_an_existing_project(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    target = tmp_path / "plugins" / "my-plugin"
+    target = tmp_path / "mcp-gateway" / "my-plugin"
     target.mkdir(parents=True)
     marker = target / "keep.txt"
     marker.write_text("keep")
@@ -974,7 +995,83 @@ def test_new_plugin_is_reserved_and_the_builtin_still_runs(
 
     out = _capture_cli(registry, ["new-plugin", "fresh-plugin"], capsys)
     assert "Created plugin project" in out
-    assert (tmp_path / "plugins" / "fresh-plugin" / "pyproject.toml").is_file()
+    assert (tmp_path / "mcp-gateway" / "fresh-plugin" / "pyproject.toml").is_file()
+
+
+def _write_project_to_initialize(root: Path) -> None:
+    (root / "pyproject.toml").write_text(
+        '[project]\nname = "sample-project"\nversion = "1.0"\n',
+        encoding="utf-8",
+    )
+    package = root / "src" / "sample_project"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+
+
+def test_init_previews_and_applies_with_yes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_project_to_initialize(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    out = _capture_cli(PluginRegistry([]), ["init", "--yes"], capsys)
+
+    assert "Planned MCP integration for sample-project" in out
+    assert "Initialized MCP plugin" in out
+    assert (tmp_path / "src" / "sample_project" / "mcp_server.py").is_file()
+    assert "sample_project.mcp_server:build_server" in (
+        tmp_path / "pyproject.toml"
+    ).read_text(encoding="utf-8")
+
+
+def test_init_decline_leaves_project_unchanged(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_project_to_initialize(tmp_path)
+    pyproject = tmp_path / "pyproject.toml"
+    original = pyproject.read_text(encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    class InteractiveInput:
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setattr("mcp_plugin_gateway.cli.sys.stdin", InteractiveInput())
+    monkeypatch.setattr("typer.confirm", lambda *_args, **_kwargs: False)
+
+    out = _capture_cli(PluginRegistry([]), ["init"], capsys)
+
+    assert "Cancelled" in out
+    assert pyproject.read_text(encoding="utf-8") == original
+    assert not (tmp_path / "src" / "sample_project" / "mcp_server.py").exists()
+
+
+def test_init_noninteractive_requires_yes_and_does_not_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_project_to_initialize(tmp_path)
+    pyproject = tmp_path / "pyproject.toml"
+    original = pyproject.read_text(encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    class NonInteractiveInput:
+        def isatty(self) -> bool:
+            return False
+
+    monkeypatch.setattr("mcp_plugin_gateway.cli.sys.stdin", NonInteractiveInput())
+
+    code = _run_cli_exit_code(PluginRegistry([]), ["init"])
+
+    assert code == 2
+    assert "--yes" in capsys.readouterr().err
+    assert pyproject.read_text(encoding="utf-8") == original
+    assert not (tmp_path / "src" / "sample_project" / "mcp_server.py").exists()
 
 
 def test_reserved_name_collision_is_reported_and_the_builtin_still_runs(

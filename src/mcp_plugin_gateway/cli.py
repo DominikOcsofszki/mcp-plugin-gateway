@@ -12,6 +12,7 @@ from __future__ import annotations
 import inspect
 import json
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import typer
@@ -600,16 +601,65 @@ def _register_context_commands(
         else:
             typer.echo(render_authoring())
 
+    def _init_project(
+        yes: bool = typer.Option(
+            False,
+            "--yes",
+            "-y",
+            help="Apply the displayed project changes without prompting.",
+        ),
+    ) -> None:
+        """Preview and add an MCP plugin entry point to the current Python project."""
+        from mcp_plugin_gateway.project_init import (
+            apply_project_init_plan,
+            build_project_init_plan,
+        )
+
+        try:
+            plan = build_project_init_plan()
+        except (OSError, ValueError) as exc:
+            typer.echo(f"Cannot initialize MCP project: {exc}", err=True)
+            raise typer.Exit(code=2) from exc
+
+        typer.echo(f"Planned MCP integration for {plan.plugin_name}:")
+        typer.echo(plan.diff(), nl=False)
+        if not yes:
+            if not sys.stdin.isatty():
+                typer.echo(
+                    "Not running interactively; review the plan and rerun with --yes "
+                    "to apply it.",
+                    err=True,
+                )
+                raise typer.Exit(code=2)
+            if not typer.confirm("Apply these changes?", default=False):
+                typer.echo("Cancelled; no project files were changed.")
+                return
+
+        try:
+            changed = apply_project_init_plan(plan)
+        except OSError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1) from exc
+        typer.echo(
+            "Initialized MCP plugin. Updated: "
+            + ", ".join(str(path) for path in changed)
+        )
+
     def _new_plugin(
         distribution_name: str = typer.Argument(
             ..., help="Distribution name for the new standalone plugin project."
         ),
+        directory: Path | None = typer.Option(
+            None,
+            "--directory",
+            help="Destination directory (defaults to ./mcp-gateway/<name>).",
+        ),
     ) -> None:
-        """Create a standalone plugin project under ./plugins/."""
+        """Create a standalone plugin project under ./mcp-gateway/."""
         from mcp_plugin_gateway.scaffold import scaffold_plugin
 
         try:
-            project = scaffold_plugin(distribution_name)
+            project = scaffold_plugin(distribution_name, directory=directory)
         except ValueError as exc:
             typer.echo(str(exc), err=True)
             raise typer.Exit(code=2) from exc
@@ -620,6 +670,9 @@ def _register_context_commands(
 
     app.command("llm", help="Print the installed plugins and their tools.")(_llm)
     app.command("authoring", help="Print the contract a plugin must satisfy.")(_authoring)
+    app.command("init", help="Add an MCP plugin to the current Python project.")(
+        _init_project
+    )
     app.command("new-plugin", help="Scaffold a standalone plugin project.")(_new_plugin)
 
     reserved = {command.name for command in app.registered_commands}

@@ -14,7 +14,7 @@ def test_scaffold_generates_plugin_project(tmp_path: Path) -> None:
     project = scaffold_plugin("sample-plugin", root=tmp_path)
     module = project / "src" / "sample_plugin" / "__init__.py"
 
-    assert project == tmp_path / "plugins" / "sample-plugin"
+    assert project == tmp_path / "mcp-gateway" / "sample-plugin"
     assert (project / "pyproject.toml").is_file()
     assert (project / "README.md").is_file()
     assert module.is_file()
@@ -45,7 +45,18 @@ def test_scaffold_defaults_to_current_working_directory(
 
     project = scaffold_plugin("sample")
 
-    assert project == tmp_path / "plugins" / "sample"
+    assert project == tmp_path / "mcp-gateway" / "sample"
+
+
+def test_scaffold_accepts_a_custom_project_directory(tmp_path: Path) -> None:
+    project = scaffold_plugin(
+        "sample",
+        root=tmp_path,
+        directory=Path("custom") / "sample",
+    )
+
+    assert project == tmp_path / "custom" / "sample"
+    assert (project / "pyproject.toml").is_file()
 
 
 @pytest.mark.parametrize(
@@ -69,11 +80,11 @@ def test_scaffold_rejects_invalid_name_without_writing(
     with pytest.raises(ValueError, match="Invalid distribution name"):
         scaffold_plugin(distribution_name, root=tmp_path)
 
-    assert not (tmp_path / "plugins").exists()
+    assert not (tmp_path / "mcp-gateway").exists()
 
 
 def test_scaffold_refuses_to_overwrite_existing_project(tmp_path: Path) -> None:
-    target = tmp_path / "plugins" / "sample"
+    target = tmp_path / "mcp-gateway" / "sample"
     target.mkdir(parents=True)
     sentinel = target / "keep.txt"
     sentinel.write_text("unchanged", encoding="utf-8")
@@ -103,7 +114,7 @@ def test_scaffold_reports_write_error_without_returning_success(
         scaffold_plugin("sample", root=tmp_path)
 
     assert isinstance(excinfo.value.__cause__, PermissionError)
-    assert not (tmp_path / "plugins" / "sample").exists()
+    assert not (tmp_path / "mcp-gateway" / "sample").exists()
 
 
 def test_scaffold_refuses_plugins_directory_symlink_outside_root(
@@ -114,7 +125,7 @@ def test_scaffold_refuses_plugins_directory_symlink_outside_root(
     project = tmp_path / "project"
     project.mkdir()
     try:
-        (project / "plugins").symlink_to(outside, target_is_directory=True)
+        (project / "mcp-gateway").symlink_to(outside, target_is_directory=True)
     except OSError as exc:
         pytest.skip(f"directory symlinks are unavailable: {exc}")
 
@@ -122,3 +133,16 @@ def test_scaffold_refuses_plugins_directory_symlink_outside_root(
         scaffold_plugin("sample", root=project)
 
     assert list(outside.iterdir()) == []
+
+
+def test_scaffold_rejects_a_custom_directory_outside_project_root(
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path / "outside"
+    project = tmp_path / "project"
+    project.mkdir()
+
+    with pytest.raises(OSError, match="outside project root"):
+        scaffold_plugin("sample", root=project, directory=outside)
+
+    assert not outside.exists()
